@@ -9,6 +9,12 @@ import numpy as np
 def arr2str(arr):
     return ", ".join([str(a) for a in arr])
 
+def check_numeric(v):
+    if isinstance(v, int) or isinstance(v, float):
+        return True
+    else:
+        return False
+
 class BaseElement(Element):
     def __init__(self, tag):
         super().__init__(tag)
@@ -22,6 +28,28 @@ class BaseElement(Element):
             super().extend([elements])
         else:            
             super().extend(elements)
+    
+    def change_property_value(self, name, value):
+        """change value if "name" property is name.
+        
+        Arguments:
+            name {[type]} -- name to be changed 
+            value {[type]} -- value to replace
+        
+        Raises:
+            TypeError: [description]
+        """
+        for e in self.iter():
+            if "name" in e.attrib:
+                if e.attrib["name"] == name:
+                    t1 = type(e.attrib["value"])
+                    t2 = type(value)
+                    if t1 != t2:
+                        raise TypeError(f"type of the input value should be {t1} but got {t2}")
+                    
+                    e.attrib["value"] = value 
+    
+
 
 class Scene(BaseElement):
     def __init__(self, version="0.5.0"):
@@ -57,11 +85,18 @@ class String(BaseProperty):
 
 
 class RGB(BaseProperty):
-    def __init__(self, rgb=(1, 1, 1)):
-        name = "spectrumProperty"
+    def __init__(self, name, rgb=(1, 1, 1)):
         values = [str(v) for v in rgb]
         str_values = ", ".join(values)
         super().__init__("rgb", name, str_values)    
+
+class Spectrum(BaseProperty):
+    def __init__(self, name, values):
+        if check_numeric(values):
+            str_values = str(values)
+        else:
+            str_values = arr2str(values)
+        super().__init__("spectrum", name, str_values)
 
 
 class Translate(BaseElement):
@@ -80,10 +115,35 @@ class Rotate(BaseElement):
         self.set("angle", str(angle))
 
 class Scale(BaseElement):
-    def __init__(self, value):
-        """only uniform scale is supported"""
+    def __init__(self, x, y=None, z=None):
         super().__init__("scale")
-        self.set("value", str(value))
+        if y is None and z is None:
+            self.set("value", str(x))
+        else:
+            self.set("x", str(x))
+            if y is not None:
+                self.set("y", str(y))
+            if z is not None:
+                self.set("z", str(z))
+            
+
+class Point(BaseElement):
+    def __init__(self, name, xyz):
+        super().__init__("point")
+        self.set("name", name)
+        self.set("x", str(xyz[0]))
+        self.set("y", str(xyz[1]))
+        self.set("z", str(xyz[2]))
+
+class Vector(BaseElement):
+    def __init__(self, name, xyz):
+        super().__init__("vector")
+        self.set("name", name)
+        self.set("x", str(xyz[0]))
+        self.set("y", str(xyz[1]))
+        self.set("z", str(xyz[2]))    
+
+
 
 class Lookat(BaseElement):
     def __init__(self, origin, target, up=None):
@@ -178,18 +238,154 @@ class Disk(BaseShape):
         r = Transform("toWorld", [Scale(radius)])
         self.extend(r)
 
+class PLY(BaseShape):
+    def __init__(self, filename, to_world=None, 
+                       face_normals=None, max_smooth_angle=None, 
+                       flip_normals=None, srgb=None):
+        super().__init__("ply") 
+        self.extend(String("filename", str(filename)))
+
+        if to_world is not None:
+            self.extend(to_world)
+        if face_normals is not None:
+            self.extend(Boolean("faceNormals", face_normals))
+        if max_smooth_angle is not None:
+            self.extend(Float("maxSmoothAngle", max_smooth_angle))
+        if flip_normals is not None:
+            self.extend(Boolean("flipNormals", flip_normals))
+        if srgb is not None:
+            self.extend(Boolean("srgb", srgb))
+
+
+class BaseBSDF(BaseElement):
+    def __init__(self, _type):
+        super().__init__("bsdf")
+        self.set("type", _type)
+
+class Diffuse(BaseBSDF):
+    def __init__(self, reflectance):
+        """        
+        Arguments:
+            reflectance {float or list} -- [description]
+        """
+        super().__init__("diffuse")
+
+        self.extend(Spectrum("reflectance", reflectance))
+    
+
 
 class BaseSensor(BaseElement):
-    def __init__(self, _type, sampler, film):
+    def __init__(self, _type):
         super().__init__("sensor")
         self.set("type", _type)
-        self.extend([sampler, film])
         
 
-class PerspectiveSensor(BaseSensor):
-    def __init__(self, sampler, film):
-        super().__init__("perspective", sampler, film)
+class PerspectiveCamera(BaseSensor):
+    def __init__(self, fov, fov_axis, origin, target, up):
+        super().__init__("perspective")
+        
+        float_fov = Float("fov", fov)
+        str_fov_axis = String("fovAxis", fov_axis)
 
+        to_world = Transform("toWorld")
+        lookat = Lookat(origin, target, up)
+        to_world.extend(lookat)
+
+        self.extend([to_world, float_fov, str_fov_axis])
+
+
+
+
+class OrthographicCamera(BaseSensor):
+    def __init__(self, scale_x, scale_y, origin, target, up):
+        super().__init__("orthographic")
+        to_world = Transform("toWorld")
+        scale = Scale(scale_x, scale_y)
+        lookat = Lookat(origin, target, up)
+        to_world.extend([scale, lookat])
+        self.extend(to_world)
+    
+
+
+class BaseEmitter(BaseElement):
+    def __init__(self, _type):
+        super().__init__("emitter")
+        self.set("type", _type)
+    
+
+class PointSource(BaseEmitter):
+    def __init__(self, xyz, intensity_value, sampling_weight=None):
+        """[summary]
+        
+        Arguments:
+            xyz {list or ndarray} -- [x, y, z]
+            intensity_value {float or list} -- spectrum intensity
+        
+        Keyword Arguments:
+            sampling_weight {[type]} -- [description] (default: {None})
+        """
+        super().__init__("point")
+        pos = Point("position", xyz)
+        inten = Spectrum("intensity", intensity_value)
+
+        self.extend([pos, inten])
+
+        if sampling_weight is not None:
+            float_sw = Float("samplingWeight", sampling_weight)
+            self.extend(float_sw)
+
+class DirectionalSource(BaseEmitter):
+    def __init__(self, direction, irradiance_value, sampling_weight=None):
+        """
+        Arguments:
+            direction {list or ndarray} -- direction vector[x, y, z]
+            irradiance_value {float or list} -- spectrum irradiance
+        
+        Keyword Arguments:
+            sampling_weight {[type]} -- [description] (default: {None})
+        """
+        super().__init__("directional")
+        vec = Vector("direction", direction)
+
+        irr = Spectrum("irradiance", irradiance_value)
+
+
+        self.extend([vec, irr])
+
+        if sampling_weight is not None:
+            float_sw = Float("samplingWeight", sampling_weight)
+            self.extend(float_sw)
+
+class OrthographicProjector(BaseEmitter):
+    def __init__(self, fname, scale_x, scale_y, origin, target, up, irradiance_value):
+        super().__init__("orthographicprojector")
+        
+        str_fname = String("filename", str(fname))
+
+        if check_numeric(irradiance_value):
+            irr = Float("irradiance", irradiance_value)
+        else:
+            irr = Spectrum("irradiance", irradiance_value)
+
+        scale = Scale(scale_x, scale_y)
+        lookat = Lookat(origin, target, up)
+        trans = Transform("toWorld", [scale, lookat])
+
+        self.extend([str_fname, trans, irr])
+
+class PerspectiveProjector(BaseEmitter):
+    def __init__(self, fname, fov, fov_axis, origin, target, up, scale):
+        super().__init__("perspectiveprojector")
+        str_fname = String("filename", str(fname))
+        float_scale = Float("scale", scale)
+
+        float_fov = Float("fov", fov)
+        str_fov_axis = String("fovAxis", fov_axis)
+        
+        lookat = Lookat(origin, target, up)
+        trans = Transform("toWorld", [lookat])
+
+        self.extend([str_fname, float_scale, float_fov, str_fov_axis, trans])
 
 class BaseIntegrator(BaseElement):
     def __init__(self, _type):
@@ -209,14 +405,32 @@ class FieldExtractionIntegrator(BaseIntegrator):
         self.extend(field)
 
 class MultiChannelIntegrator(BaseIntegrator):
-    def __init__(self, fields):
+    def __init__(self, integrators):
         """
         
         Arguments:
-            fields {list} -- a list of integrators
+            integrators {list} -- a list of integrators
         """
         super().__init__("multichannel")
-        self.extend(fields)
+        self.extend(integrators)
+    
+    @classmethod
+    def from_field_names(cls, fields, base_integrator=None):
+        """[summary]
+        
+        Arguments:
+            base_integrator {BaseIntegrator} -- base integrator to be used for rendering such as PathIntegrator.
+            fields {list of str} -- each string should specify "shNormal", "distance" or "position". 
+                                   see the documentation(8.10.18) for further detail.
+        """
+        if base_integrator is None:
+            integrators = []
+        else:
+            integrators = [base_integrator]
+            
+        integrators += [FieldExtractionIntegrator(field) for field in fields]
+
+        return cls(integrators)
 
 class PathIntegrator(BaseIntegrator):
     def __init__(self, max_depth=1, rr_depth=5, strict_normals=True, hide_emitters=False):
@@ -235,7 +449,7 @@ def run_mitsuba(xml_fname, output_fname=None, quiet=False):
 
     cmd = ["mitsuba"]
     if output_fname is not None:
-        cmd += [f"-o {output_fname}"]
+        cmd += [f"-o{str(output_fname)}"]
     if quiet:
         cmd += ["-q"]
 
@@ -250,7 +464,7 @@ def prettify(elem):
     """
     rough_string = ElementTree.tostring(elem, 'utf-8')
     reparsed = minidom.parseString(rough_string)
-    return reparsed.toprettyxml(indent="  ")
+    return reparsed.toprettyxml(indent="    ")
 
 def save_cmd(fname, elem):
     with open(fname, 'w') as f:
@@ -360,11 +574,8 @@ if __name__ == "__main__":
     
     sampler = LDSampler()
     film = HDRFilm(width=128, height=100, pixel_formats=pixel_formats, channel_names=ch_names)
-    sensor = PerspectiveSensor(sampler, film)
-    
-    lookat =  Lookat(origin=[0, 0, 5], target=[0, 0, 0], up=[0, 1, 0])
-    sensor_transform = Transform("toWorld", [lookat])
-    sensor.extend([sensor_transform])
+    sensor = PerspectiveCamera(sampler, film, origin=[0, 0, 5], target=[0, 0, 0], up=[0, 1, 0])
+
 
 
     scene.extend([multi_integrator, sensor, sphere, disk])
@@ -375,6 +586,8 @@ if __name__ == "__main__":
     save_cmd(fname_out, scene)
 
     run_mitsuba(fname_out, quiet=False)
+    
+    exit()
 
     import pyexr
     exr_img = pyexr.open(str(fname_out.with_suffix(".exr")))
