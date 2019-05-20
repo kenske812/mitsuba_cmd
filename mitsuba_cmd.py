@@ -432,7 +432,7 @@ class MultiChannelIntegrator(BaseIntegrator):
 
         return cls(integrators)
 
-class PathIntegrator(BaseIntegrator):
+class PathTracer(BaseIntegrator):
     def __init__(self, max_depth=1, rr_depth=5, strict_normals=True, hide_emitters=False):
         super().__init__("path")
         max_d = Integer("maxDepth", max_depth)
@@ -441,9 +441,20 @@ class PathIntegrator(BaseIntegrator):
         hide_e = Boolean("hideEmitters", hide_emitters)
 
         self.extend([max_d, rr_d, strict_n, hide_e])
-    
+
+class BidirectionalPT(BaseIntegrator):
+    def __init__(self, max_depth=1, rr_depth=5, light_image=False, sample_direct=True):
+        super().__init__("bdpt")
+        max_d = Integer("maxDepth", max_depth)
+        rr_d = Integer("rrDepth", rr_depth)
+        l_image = Boolean("lightImage", light_image)
+        sd = Boolean("sampleDirect", sample_direct)
+
+        self.extend([max_d, rr_d, l_image, sd])
 
 
+class MitsubaError(Exception):
+    pass
 
 def run_mitsuba(xml_fname, output_fname=None, quiet=False):
 
@@ -456,6 +467,8 @@ def run_mitsuba(xml_fname, output_fname=None, quiet=False):
     cmd += [str(xml_fname)]
 
     out = subprocess.run(cmd)
+    if out.returncode != 0:
+        raise MitsubaError(f"{out}")
     return out
 
 
