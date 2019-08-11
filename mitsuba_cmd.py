@@ -178,6 +178,10 @@ class BaseSamplerD(BaseSampler):
             self.extend([d])
 
 
+class IndependentSampler(BaseSampler):
+    def __init__(self, sample_count=None):
+        super().__init__("independent", sample_count=sample_count)
+
 class StradifiedSampler(BaseSamplerD):
     def __init__(self, sample_count=None, dimension=None):
         super().__init__("stratified", sample_count, dimension)
@@ -186,6 +190,13 @@ class LDSampler(BaseSamplerD):
     def __init__(self, sample_count=None, dimension=None):
         super().__init__("ldsampler", sample_count, dimension)
 
+class HaltonSampler(BaseSampler):
+    def __init__(self, sample_count=None, scramble=None):
+        super().__init__("halton", sample_count=sample_count)
+        if scramble is not None:
+            self.append(Integer("scramble", scramble))
+        
+        
 
 class BaseFilm(BaseElement):
     def __init__(self, _type, width, height):
@@ -256,6 +267,17 @@ class PLY(BaseShape):
         if srgb is not None:
             self.extend(Boolean("srgb", srgb))
 
+class BaseTexture(BaseElement):
+    def __init__(self, _type):
+        super().__init__("texture")
+        self.set("type", _type)
+
+class Bitmap(BaseTexture):
+    def __init__(self, filename):
+        super().__init__("bitmap")
+        self.append(String("filename", filename))
+
+
 
 class BaseBSDF(BaseElement):
     def __init__(self, _type):
@@ -271,7 +293,140 @@ class Diffuse(BaseBSDF):
         super().__init__("diffuse")
 
         self.extend(Spectrum("reflectance", reflectance))
-    
+
+
+class SmoothConductor(BaseBSDF):
+    def __init__(self, material=None):
+        super().__init__("conductor")
+        if material is not None:
+            self.add(String("material", material))
+        
+
+
+class RoughConductor(BaseBSDF):
+    def __init__(self, distribution=None, alpha=None, material=None, 
+                        eta=None, k=None, ext_eta=None):
+        """
+        
+        Keyword Arguments:
+            distribution {str} -- ["beckmann", "ggx", "phong"] (default: {None})
+            alpha {float} -- roughness (default: {None})
+            material {str} -- [description] (default: {None})
+            eta {float or list} -- [description] (default: {None})
+            k {float or list} -- [description] (default: {None})
+            ext_eta {float} -- [description] (default: {None})
+        """
+        super().__init__("roughconductor")
+
+        if distribution is not None:
+            self.append(String("distribution", distribution))
+
+        if alpha is not None:
+            self.append(Float("alpha", alpha))
+        if material is not None:
+            self.append(String("material", material))
+        if eta is not None:
+            self.append(Spectrum("eta", eta))
+        if k is not None:
+            self.append(Spectrum("k", k))
+        if ext_eta is not None:
+            if isinstance(ext_eta, str):
+                self.append(String("extEta", ext_eta))
+            else:
+                self.append(Float("extEta", ext_eta))
+
+class SmoothPlastic(BaseBSDF):
+    def __init__(self, int_ior=None, ext_ior=None, 
+                       specular_reflectance=None,
+                       diffuse_reflectance=None,
+                       nonlinear=None):
+        """[summary]
+        
+        Keyword Arguments:
+            int_ior {float or str} --  Interior index of refraction. defulat ispolypropylene/ 1.49 (default: {None})
+            ext_ior {float or str} -- Exterior index of refraction. defualt is air(default: {None})
+            specular_reflectance {float or list} -- default is 1.0 (default: {None})
+            diffuse_reflectance {float or list} -- default is 0.5 (default: {None})
+            nonlinear {bool} -- if dispersion is acounted.(default: {None})
+        """
+        super().__init__("plastic")
+        if int_ior is not None:
+            if isinstance(int_ior, float):
+                self.append(Float("intIOR", int_ior))
+            elif isinstance(int_ior, str):
+                self.append(String("intIOR", int_ior))
+            else:
+                TypeError(f"use float or str, not {type(int_ior)}")
+        
+        if ext_ior is not None:
+            if isinstance(ext_ior, float):
+                self.append(Float("extIOR", ext_ior))
+            elif isinstance(ext_ior, str):
+                self.append(String("extIOR", ext_ior))
+            else:
+                TypeError(f"use float or str, not {type(ext_ior)}")
+        
+        if specular_reflectance is not None:
+            self.append(Spectrum("specularReflectance", specular_reflectance))
+        if diffuse_reflectance is not None:
+            self.append(Spectrum("diffuseReflectance", diffuse_reflectance))
+
+        if nonlinear is not None:
+            self.append(Boolean("nonlinear", nonlinear))
+
+
+            
+class RoughPlastic(BaseBSDF):
+    def __init__(self, distribution=None, alpha=None, 
+                       int_ior=None, ext_ior=None, 
+                       specular_reflectance=None,
+                       diffuse_reflectance=None,
+                       nonlinear=None):
+        """
+        
+        Keyword Arguments:
+            distribution {str} -- ["beckmann", "ggx", "phong"] (default: {None})
+            alpha {float} -- roughness (default: {None})
+            int_ior {float or str} --  Interior index of refraction. defulat ispolypropylene/ 1.49 (default: {None})
+            ext_ior {float or str} -- Exterior index of refraction. defualt is air(default: {None})
+            specular_reflectance {float or list} -- default is 1.0 (default: {None})
+            diffuse_reflectance {float or list} -- default is 0.5 (default: {None})
+            nonlinear {bool} -- if dispersion is acounted.(default: {None})
+        """     
+
+        super().__init__("roughplastic")
+
+        if distribution is not None:
+            self.append(String("distribution", distribution))
+
+        if alpha is not None:
+            self.append(Float("alpha", alpha))
+
+        if int_ior is not None:
+            if isinstance(int_ior, float):
+                self.append(Float("intIOR", int_ior))
+            elif isinstance(int_ior, str):
+                self.append(String("intIOR", int_ior))
+            else:
+                TypeError(f"use float or str, not {type(int_ior)}")
+        
+        if ext_ior is not None:
+            if isinstance(ext_ior, float):
+                self.append(Float("extIOR", ext_ior))
+            elif isinstance(ext_ior, str):
+                self.append(String("extIOR", ext_ior))
+            else:
+                TypeError(f"use float or str, not {type(ext_ior)}")
+        
+        if specular_reflectance is not None:
+            self.append(Spectrum("specularReflectance", specular_reflectance))
+        if diffuse_reflectance is not None:
+            self.append(Spectrum("diffuseReflectance", diffuse_reflectance))
+
+        if nonlinear is not None:
+            self.append(Boolean("nonlinear", nonlinear))
+
+
 
 
 class BaseSensor(BaseElement):
@@ -333,6 +488,27 @@ class PointSource(BaseEmitter):
         if sampling_weight is not None:
             float_sw = Float("samplingWeight", sampling_weight)
             self.extend(float_sw)
+
+class SpotLightSource(BaseEmitter):
+    def __init__(self, origin, target, intensity, cutoff_angle, beam_width=None):
+        super().__init__("spot")
+        to_world = Transform("toWorld")
+        to_world.append(Lookat(origin, target))
+        self.append(to_world)
+
+        inten = Spectrum("intensity", intensity)
+        self.append(inten)
+
+        cutoff = Float("cutoffAngle", cutoff_angle)
+        self.append(cutoff)
+
+        if beam_width is not None:
+            beam = Float("beamWidth", beam_width)
+            self.append(beam)
+
+
+
+
 
 class DirectionalSource(BaseEmitter):
     def __init__(self, direction, irradiance_value, sampling_weight=None):
@@ -433,7 +609,7 @@ class MultiChannelIntegrator(BaseIntegrator):
         return cls(integrators)
 
 class PathTracer(BaseIntegrator):
-    def __init__(self, max_depth=1, rr_depth=5, strict_normals=True, hide_emitters=False):
+    def __init__(self, max_depth=2, rr_depth=5, strict_normals=True, hide_emitters=False):
         super().__init__("path")
         max_d = Integer("maxDepth", max_depth)
         rr_d = Integer("rrDepth", rr_depth)
@@ -443,7 +619,7 @@ class PathTracer(BaseIntegrator):
         self.extend([max_d, rr_d, strict_n, hide_e])
 
 class BidirectionalPT(BaseIntegrator):
-    def __init__(self, max_depth=1, rr_depth=5, light_image=False, sample_direct=True):
+    def __init__(self, max_depth=2, rr_depth=5, light_image=False, sample_direct=True):
         super().__init__("bdpt")
         max_d = Integer("maxDepth", max_depth)
         rr_d = Integer("rrDepth", rr_depth)
@@ -451,6 +627,65 @@ class BidirectionalPT(BaseIntegrator):
         sd = Boolean("sampleDirect", sample_direct)
 
         self.extend([max_d, rr_d, l_image, sd])
+
+class PhotonMapper(BaseIntegrator):
+    def __init__(self, max_depth=None, rr_depth=None, global_photons=None):
+        super().__init__("photonmapper")
+        if max_depth is not None:
+            self.append(Integer("maxDepth", max_depth))
+        if rr_depth is not None:
+            self.append(Integer("rrDepth", rr_depth))
+        if global_photons is not None:
+            self.append(Integer("globalPhotons", global_photons))
+            
+
+class SPPM(BaseIntegrator):
+    def __init__(self, max_depth=None, rr_depth=None, max_passes=None):
+        super().__init__("sppm")
+        if max_depth is not None:
+            self.append(Integer("maxDepth", max_depth))
+        if rr_depth is not None:
+            self.append(Integer("rrDepth", rr_depth))
+        if max_passes is not None:
+            self.append(Integer("maxPasses", max_passes))
+
+class PSSMLT(BaseIntegrator):
+    def __init__(self, max_depth=None, rr_depth=None):
+        super().__init__("pssmlt")
+        if max_depth is not None:
+            self.append(Integer("maxDepth", max_depth))
+        if rr_depth is not None:
+            self.append(Integer("rrDepth", rr_depth))
+        
+
+
+
+
+
+class ERPT(BaseIntegrator):
+    def __init__(self, max_depth=None, direct_samples=None, 
+                       lens_perturbation=None, multichain_perturbation=None):
+        """camera needs to be perspective
+        
+        Keyword Arguments:
+            max_depth {[type]} -- [description] (default: {None})
+            direct_samples {[type]} -- [description] (default: {None})
+            lens_perturbation {[type]} -- [description] (default: {None})
+            multichain_perturbation {[type]} -- [description] (default: {None})
+        """
+        super().__init__("erpt")
+        if max_depth is not None:
+            self.append(Integer("maxDepth", max_depth))
+        if direct_samples is not None:
+            self.append(Integer("directSamples", direct_samples))
+        if lens_perturbation is not None:
+            self.append(Boolean("lensPerturbation", lens_perturbation))
+        if multichain_perturbation is not None:
+            self.append(Boolean("multiChainPertubation", multichain_perturbation))
+        
+
+
+
 
 
 class MitsubaError(Exception):
