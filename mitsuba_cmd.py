@@ -277,6 +277,10 @@ class Bitmap(BaseTexture):
         super().__init__("bitmap")
         self.append(String("filename", filename))
 
+class VertexColor(BaseTexture):
+    def __init__(self):
+        super().__init__("vertexcolors")
+        self.set("name", "reflectance")
 
 
 class BaseBSDF(BaseElement):
@@ -293,6 +297,17 @@ class Diffuse(BaseBSDF):
         super().__init__("diffuse")
 
         self.extend(Spectrum("reflectance", reflectance))
+
+
+class DiffuseTexture(BaseBSDF):
+    def __init__(self, texture):
+        """        
+        Arguments:
+            reflectance {float or list} -- [description]
+        """
+        super().__init__("diffuse")
+
+        self.append(texture)
 
 
 class SmoothConductor(BaseBSDF):
@@ -437,6 +452,22 @@ class BaseSensor(BaseElement):
 
 class PerspectiveCamera(BaseSensor):
     def __init__(self, fov, fov_axis, origin, target, up):
+        """perspective camera
+        for fov_axis:
+            (i) x: fov maps to the x-axis in screen space.
+            (ii) y: fov maps to the y-axis in screen space.
+            (iii) diagonal: fov maps to the screen diagonal.
+            (iv) smaller: fov maps to the smaller dimension (e.g. x when width<height)
+            (v) larger: fov maps to the larger dimension (e.g. y when width<height)
+            The default is x.
+        Arguments:
+            BaseSensor {[type]} -- [description]
+            fov {float} -- fov in degree(0-180)
+            fov_axis {str} -- [description]
+            origin {[type]} -- [description]
+            target {[type]} -- [description]
+            up {[type]} -- [description]
+        """
         super().__init__("perspective")
         
         float_fov = Float("fov", fov)
@@ -550,10 +581,10 @@ class OrthographicProjector(BaseEmitter):
         self.extend([str_fname, trans, irr])
 
 class PerspectiveProjector(BaseEmitter):
-    def __init__(self, fname, fov, fov_axis, origin, target, up, scale):
+    def __init__(self, fname, fov, fov_axis, origin, target, up, radiance_scale):
         super().__init__("perspectiveprojector")
         str_fname = String("filename", str(fname))
-        float_scale = Float("scale", scale)
+        float_scale = Float("scale", radiance_scale)
 
         float_fov = Float("fov", fov)
         str_fov_axis = String("fovAxis", fov_axis)
